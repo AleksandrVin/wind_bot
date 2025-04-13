@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+    ports:
+      - "5432:5432" # Expose for local access if needed, remove in production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-appdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379" # Expose for local access if needed, remove in production
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app_base: &app_base
+    build: .
+    env_file:
+      - .env # Load environment variables from .env file
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - .:/app # Mount current directory for development hot-reloading
+
+  web:
+    <<: *app_base
+    command: gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app
+    ports:
+      - "5000:5000"
+
+  bot:
+    <<: *app_base
+    command: python run_bot.py
+
+  worker:
+    <<: *app_base
+    command: celery -A tasks worker --loglevel=info --concurrency=1
+
+  beat:
+    <<: *app_base
+    command: celery -A tasks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+volumes:
+  postgres_data:
+
+# Note: For production (e.g., Kubernetes), you'd typically:
+# - Remove the volume mount for code (.:/app) and rely on the built image.
+# - Not expose db/redis ports directly.
+# - Use managed database and Redis services.
+# - Handle secrets securely (e.g., Kubernetes Secrets).
+# - Use a more robust healthcheck for the app services.
+# - Adjust resource limits.
+# - The `django_celery_beat.schedulers:DatabaseScheduler` for beat assumes you are using django-celery-beat. Adjust if using a different scheduler. 
