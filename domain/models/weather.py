@@ -1,6 +1,7 @@
 """
 Domain models for weather data in the wind sports Telegram bot.
 """
+
 from datetime import datetime
 from typing import Optional, List
 
@@ -9,14 +10,15 @@ from pydantic import BaseModel, Field
 
 class WindSpeed(BaseModel):
     """Wind speed data with conversion utilities"""
+
     speed_ms: float = Field(..., description="Wind speed in meters per second")
     gust_ms: Optional[float] = Field(None, description="Wind gust speed in meters per second")
-    
+
     @property
     def speed_knots(self) -> float:
         """Convert wind speed from m/s to knots"""
         return self.speed_ms * 1.94384
-    
+
     @property
     def gust_knots(self) -> Optional[float]:
         """Convert wind gust speed from m/s to knots"""
@@ -27,6 +29,7 @@ class WindSpeed(BaseModel):
 
 class WeatherCondition(BaseModel):
     """Weather condition data"""
+
     id: int = Field(..., description="Weather condition ID")
     main: str = Field(..., description="Group of weather parameters (Rain, Snow, Clouds etc.)")
     description: str = Field(..., description="Weather condition within the group")
@@ -35,6 +38,7 @@ class WeatherCondition(BaseModel):
 
 class WeatherData(BaseModel):
     """Current weather data"""
+
     temperature: float = Field(..., description="Temperature in Celsius")
     feels_like: float = Field(..., description="Temperature feels like in Celsius")
     pressure: int = Field(..., description="Atmospheric pressure in hPa")
@@ -51,17 +55,21 @@ class WeatherData(BaseModel):
     sunset: datetime = Field(..., description="Sunset time, unix, UTC")
     location_name: Optional[str] = Field(None, description="Name of the location")
     country_code: Optional[str] = Field(None, description="Country code of the location")
-    
+
     @property
     def has_rain(self) -> bool:
         """Check if it's raining"""
-        return (self.rain_1h is not None and self.rain_1h > 0) or \
-               (self.rain_3h is not None and self.rain_3h > 0) or \
-               any(condition.main.lower() == "rain" for condition in self.weather_conditions)
-    
+        return (
+            (self.rain_1h is not None and self.rain_1h > 0)
+            or (self.rain_3h is not None and self.rain_3h > 0)
+            or any(condition.main.lower() == "rain" for condition in self.weather_conditions)
+        )
+
     @property
     def has_snow(self) -> bool:
         """Check if it's snowing"""
-        return (self.snow_1h is not None and self.snow_1h > 0) or \
-               (self.snow_3h is not None and self.snow_3h > 0) or \
-               any(condition.main.lower() == "snow" for condition in self.weather_conditions)
+        return (
+            (self.snow_1h is not None and self.snow_1h > 0)
+            or (self.snow_3h is not None and self.snow_3h > 0)
+            or any(condition.main.lower() == "snow" for condition in self.weather_conditions)
+        )

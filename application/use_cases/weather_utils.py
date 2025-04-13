@@ -1,6 +1,7 @@
 """
 Weather utility functions for the wind sports Telegram bot.
 """
+
 from datetime import datetime
 
 from config import settings
@@ -20,7 +21,7 @@ def should_send_wind_alert(weather_data: WeatherData) -> bool:
     """
     if not is_within_alert_time_window():
         return False
-    
+
     wind_speed_knots = weather_data.wind.speed_knots
     return wind_speed_knots >= settings.WIND_THRESHOLD_KNOTS
 
@@ -29,14 +30,14 @@ def get_weather_emoji(weather_data: WeatherData) -> str:
     """Get appropriate emoji for weather conditions"""
     if not weather_data.weather_conditions:
         return "🌤️"
-    
+
     condition = weather_data.weather_conditions[0].main.lower()
-    
+
     if weather_data.has_rain:
         return "🌧️"
     if weather_data.has_snow:
         return "❄️"
-    
+
     mapping = {
         "clear": "☀️",
         "clouds": "☁️",
@@ -50,9 +51,9 @@ def get_weather_emoji(weather_data: WeatherData) -> str:
         "squall": "💨",
         "tornado": "🌪️",
         "thunderstorm": "⛈️",
-        "drizzle": "🌦️"
+        "drizzle": "🌦️",
     }
-    
+
     return mapping.get(condition, "🌤️")
 
 

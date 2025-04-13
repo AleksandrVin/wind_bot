@@ -1,6 +1,7 @@
 """
 Message formatting for the wind sports Telegram bot.
 """
+
 from config import Language
 from domain.models.weather import WeatherData
 from domain.models.messaging import MessageType
@@ -11,14 +12,14 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
     """Format weather data into a human-readable message with rich formatting"""
     emoji = get_weather_emoji(weather_data)
     wind_emoji = get_wind_emoji(weather_data.wind.speed_knots)
-    
+
     date_str = weather_data.timestamp.strftime("%d.%m.%Y")
     time_str = weather_data.timestamp.strftime("%H:%M")
-    
+
     gust_text = ""
     if weather_data.wind.gust_knots:
         gust_text = f" (gusts: {weather_data.wind.gust_knots:.1f} kn / {weather_data.wind.gust_ms:.1f} m/s)"
-    
+
     if language == Language.ENGLISH:
         if message_type == MessageType.CURRENT_WEATHER:
             location_info = ""
@@ -26,7 +27,7 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 location_info = f" for {weather_data.location_name}"
                 if weather_data.country_code:
                     location_info += f", {weather_data.country_code}"
-            
+
             return (
                 f"*Current Weather*{location_info} {emoji} ({date_str}, {time_str})\n\n"
                 f"🌡️ Temperature: *{weather_data.temperature:.1f}°C* (feels like {weather_data.feels_like:.1f}°C)\n"
@@ -43,7 +44,7 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 location_info = f" for {weather_data.location_name}"
                 if weather_data.country_code:
                     location_info += f", {weather_data.country_code}"
-            
+
             return (
                 f"*Daily Forecast*{location_info} {emoji} ({date_str})\n\n"
                 f"🌡️ Temperature: *{weather_data.temperature:.1f}°C* (feels like {weather_data.feels_like:.1f}°C)\n"
@@ -60,7 +61,7 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 location_info = f" for {weather_data.location_name}"
                 if weather_data.country_code:
                     location_info += f", {weather_data.country_code}"
-            
+
             return (
                 f"*Wind Alert!*{location_info} {wind_emoji}\n\n"
                 f"Current wind speed is *{weather_data.wind.speed_knots:.1f} kn / {weather_data.wind.speed_ms:.1f} m/s*{gust_text}\n"
@@ -73,7 +74,7 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 location_info = f" для {weather_data.location_name}"
                 if weather_data.country_code:
                     location_info += f", {weather_data.country_code}"
-            
+
             return (
                 f"*Текущая погода*{location_info} {emoji} ({date_str}, {time_str})\n\n"
                 f"🌡️ Температура: *{weather_data.temperature:.1f}°C* (ощущается как {weather_data.feels_like:.1f}°C)\n"
@@ -90,7 +91,7 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 location_info = f" для {weather_data.location_name}"
                 if weather_data.country_code:
                     location_info += f", {weather_data.country_code}"
-            
+
             return (
                 f"*Прогноз на день*{location_info} {emoji} ({date_str})\n\n"
                 f"🌡️ Температура: *{weather_data.temperature:.1f}°C* (ощущается как {weather_data.feels_like:.1f}°C)\n"
@@ -107,12 +108,12 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 location_info = f" для {weather_data.location_name}"
                 if weather_data.country_code:
                     location_info += f", {weather_data.country_code}"
-            
+
             return (
                 f"*Ветровая тревога!*{location_info} {wind_emoji}\n\n"
                 f"Текущая скорость ветра *{weather_data.wind.speed_knots:.1f} уз / {weather_data.wind.speed_ms:.1f} м/с*{gust_text}\n"
                 f"Время кататься! 🏄‍♂️🪁"
             )
-    
+
     # Default to English if language not supported
     return format_weather_message(weather_data, message_type, Language.ENGLISH)
