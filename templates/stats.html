@@ -1,0 +1,196 @@
+{% extends "layout.html" %}
+
+{% block title %}Statistics{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i> Bot Usage Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <canvas id="usageChart" height="250"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="list-group">
+                            {% if latest_stats %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-users me-2"></i> Active Users
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ latest_stats.active_users }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-comment-alt me-2"></i> Messages Processed
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ latest_stats.messages_processed }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-cloud-sun me-2"></i> Weather Commands
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ latest_stats.weather_commands }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-calendar-alt me-2"></i> Forecast Commands
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ latest_stats.forecast_commands }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-wind me-2"></i> Wind Commands
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ latest_stats.wind_commands }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-bell me-2"></i> Alerts Sent
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ latest_stats.alerts_sent }}</span>
+                            </div>
+                            <div class="list-group-item small text-muted">
+                                Last updated: {{ latest_stats.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                No statistics data available yet.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i> Recent Weather Logs</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time (UTC)</th>
+                                <th>Temperature (°C)</th>
+                                <th>Wind (m/s)</th>
+                                <th>Wind (knots)</th>
+                                <th>Rain</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in weather_logs %}
+                            <tr>
+                                <td>{{ log.timestamp.strftime("%Y-%m-%d %H:%M") }}</td>
+                                <td>{{ log.temperature }}</td>
+                                <td>{{ log.wind_speed_ms }}</td>
+                                <td>{{ log.wind_speed_knots }}</td>
+                                <td>
+                                    {% if log.has_rain %}
+                                    <i class="fas fa-check text-primary"></i>
+                                    {% else %}
+                                    <i class="fas fa-times text-muted"></i>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if not weather_logs %}
+                <div class="text-center py-4">
+                    <p>No weather logs available yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if stats_data %}
+        // Usage Statistics Chart
+        const usageCtx = document.getElementById('usageChart').getContext('2d');
+        const usageChart = new Chart(usageCtx, {
+            type: 'line',
+            data: {
+                labels: [{% for stat in stats_data %}'{{ stat.timestamp.strftime("%m-%d %H:%M") }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                datasets: [
+                    {
+                        label: 'Weather Commands',
+                        data: [{% for stat in stats_data %}{{ stat.weather_commands }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Forecast Commands',
+                        data: [{% for stat in stats_data %}{{ stat.forecast_commands }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Wind Commands',
+                        data: [{% for stat in stats_data %}{{ stat.wind_commands }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Alerts Sent',
+                        data: [{% for stat in stats_data %}{{ stat.alerts_sent }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                        borderColor: 'rgba(255, 159, 64, 1)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Count'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                }
+            }
+        });
+        {% endif %}
+    });
+</script>
+{% endblock %}

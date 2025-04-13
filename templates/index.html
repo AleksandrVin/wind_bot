@@ -1,0 +1,168 @@
+{% extends "layout.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i> Bot Information</h5>
+                <span class="badge bg-success">Active</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6><i class="fas fa-map-marker-alt me-2"></i> Default Location</h6>
+                    <p class="mb-1">Latitude: {{ config.LATITUDE }}</p>
+                    <p>Longitude: {{ config.LONGITUDE }}</p>
+                </div>
+                <div class="mb-3">
+                    <h6><i class="fas fa-wind me-2"></i> Wind Alert Settings</h6>
+                    <p class="mb-1">Threshold: {{ config.WIND_THRESHOLD_KNOTS }} knots</p>
+                    <p class="mb-1">Alert Hours: {{ config.ALERT_START_TIME.strftime("%H:%M") }} - {{ config.ALERT_END_TIME.strftime("%H:%M") }}</p>
+                </div>
+                <div>
+                    <h6><i class="fas fa-clock me-2"></i> Schedule</h6>
+                    <p class="mb-1">Weather Check Interval: {{ config.WEATHER_CHECK_INTERVAL_MINUTES }} minutes</p>
+                    <p>Daily Forecast Time: {{ config.FORECAST_TIME.strftime("%H:%M") }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cloud-sun me-2"></i> Current Weather</h5>
+            </div>
+            <div class="card-body">
+                {% if current_weather %}
+                <div class="d-flex align-items-center mb-3">
+                    <div class="display-4 me-3">{{ current_weather.temperature }}°C</div>
+                    <div>
+                        <h5>{{ weather_condition }}</h5>
+                        <p class="mb-0">Feels like: {{ current_weather.feels_like }}°C</p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <h6><i class="fas fa-wind me-2"></i> Wind</h6>
+                        <p class="mb-0">{{ current_weather.wind.speed_ms }} m/s ({{ current_weather.wind.speed_knots | round(1) }} knots)</p>
+                        {% if current_weather.wind.gust_ms %}
+                        <p class="mb-0">Gusts: {{ current_weather.wind.gust_ms }} m/s ({{ current_weather.wind.gust_knots | round(1) }} knots)</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-6 mb-3">
+                        <h6><i class="fas fa-tint me-2"></i> Humidity</h6>
+                        <p class="mb-0">{{ current_weather.humidity }}%</p>
+                    </div>
+                    <div class="col-6">
+                        <h6><i class="fas fa-cloud me-2"></i> Clouds</h6>
+                        <p class="mb-0">{{ current_weather.clouds }}%</p>
+                    </div>
+                    <div class="col-6">
+                        <h6><i class="fas fa-thermometer-half me-2"></i> Pressure</h6>
+                        <p class="mb-0">{{ current_weather.pressure }} hPa</p>
+                    </div>
+                </div>
+                <div class="mt-3 text-muted small">
+                    Last updated: {{ current_weather.timestamp.strftime("%Y-%m-%d %H:%M:%S") }} UTC
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-circle text-warning fa-3x mb-3"></i>
+                    <p>Weather data is currently unavailable.</p>
+                    <button id="refresh-weather" class="btn btn-primary btn-sm">
+                        <i class="fas fa-sync-alt me-1"></i> Refresh
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i> Wind Speed History (Last 24 Hours)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="windChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if weather_logs %}
+        const ctx = document.getElementById('windChart').getContext('2d');
+        const windChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [{% for log in weather_logs %}'{{ log.timestamp.strftime("%H:%M") }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                datasets: [
+                    {
+                        label: 'Wind Speed (knots)',
+                        data: [{% for log in weather_logs %}{{ log.wind_speed_knots }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Wind Speed (m/s)',
+                        data: [{% for log in weather_logs %}{{ log.wind_speed_ms }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        hidden: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Wind Speed'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time (UTC)'
+                        }
+                    }
+                }
+            }
+        });
+        {% endif %}
+
+        // Refresh button logic
+        const refreshBtn = document.getElementById('refresh-weather');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                window.location.reload();
+            });
+        }
+    });
+</script>
+{% endblock %}
