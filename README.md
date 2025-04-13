@@ -5,7 +5,9 @@ A Telegram bot for kitesurfing and windsurfing enthusiasts that provides weather
 ## Technologies Used
 
 - **Backend**: Python, Flask, Celery, Redis
-- **Database**: SQLAlchemy with SQLite
+- **Database**: 
+  - **Docker**: PostgreSQL with SQLAlchemy
+  - **Local Dev**: SQLite with SQLAlchemy (fallback)
 - **APIs**: OpenWeather API, Telegram Bot API
 - **AI/ML**: LangChain, OpenAI
 - **Frontend**: Bootstrap, Chart.js
@@ -40,7 +42,7 @@ A Telegram bot for kitesurfing and windsurfing enthusiasts that provides weather
 2.  Ensure you have Python >=3.11 and install dependencies (preferably using `uv`):
     ```bash
     pip install uv
-    uv pip install -r requirements.txt # Or sync with pyproject.toml if preferred
+    uv sync  # Or sync with pyproject.toml if preferred
     ```
 
 3.  Start the application:

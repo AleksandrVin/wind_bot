@@ -19,18 +19,12 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", settings.SESSION_SECRET)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configure the database
-# Ensure instance directory exists
-os.makedirs("instance", exist_ok=True)
+# Log the database connection info
+db_info = settings.DATABASE_URI.split('@')[-1] if '@' in settings.DATABASE_URI else settings.DATABASE_URI
+logger.info(f"Using database: {db_info}")
 
-# If using SQLite, make sure the path is absolute
-if settings.DATABASE_URI.startswith('sqlite:///'):
-    db_path = os.path.abspath('instance/wind_bot.db')
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-    logger.info(f"Using SQLite database at: {db_path}")
-else:
-    app.config["SQLALCHEMY_DATABASE_URI"] = settings.DATABASE_URI
-
+# Apply the database URI directly from settings
+app.config["SQLALCHEMY_DATABASE_URI"] = settings.DATABASE_URI
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = settings.DATABASE_ENGINE_OPTIONS
 
 # Initialize the database

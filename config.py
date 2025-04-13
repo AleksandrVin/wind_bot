@@ -5,6 +5,7 @@ Uses Pydantic for settings management.
 from datetime import time
 from enum import Enum
 from typing import Optional, List, Dict, Any
+import os
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
@@ -45,10 +46,16 @@ class Settings(BaseSettings):
     ALERT_END_TIME: time = Field(time(17, 0), description="End time for wind alerts (HH:MM)")
     
     # Redis Settings
-    REDIS_URL: str = Field("redis://localhost:6379/0", description="Redis URL for Celery")
+    REDIS_URL: str = Field(
+        default_factory=lambda: os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0"), 
+        description="Redis URL for Celery"
+    )
     
     # Database Settings
-    DATABASE_URI: str = Field("sqlite:///instance/wind_bot.db", description="Database connection URI")
+    DATABASE_URI: str = Field(
+        default="sqlite:///instance/wind_bot.db",
+        description="Database connection URI"
+    )
     DATABASE_ENGINE_OPTIONS: Dict[str, Any] = Field(
         default_factory=lambda: {
             "pool_recycle": 300,
@@ -69,6 +76,12 @@ class Settings(BaseSettings):
     # OpenAI Settings
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key")
     OPENAI_MODEL: str = Field("gpt-4o", description="OpenAI model to use")
+    
+    @field_validator('DATABASE_URI', mode='before')
+    @classmethod
+    def set_database_uri(cls, v):
+        """Priority: DATABASE_URL environment variable, then default value"""
+        return os.environ.get("DATABASE_URL", v)
     
     @field_validator('FORECAST_TIME', 'ALERT_START_TIME', 'ALERT_END_TIME')
     @classmethod

@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Readme file must be updated every time and kept short [README.md](mdc:README.md)
+
+This is a python project with TDD, DDD patters used as described in readme. Always update code to be aligned with project patterns. 
+
+Docker is used with docker compose to start project [docker-compose.yml](mdc:docker-compose.yml) [Dockerfile](mdc:Dockerfile)
+
+Packet manager: uv [pyproject.toml](mdc:pyproject.toml)
+Linter: ruff (uv run ruff check\format)

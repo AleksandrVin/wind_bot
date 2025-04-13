@@ -1,8 +1,8 @@
 [project]
-name = "repl-nix-workspace"
+name = "wind-bot"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.11"
+description = "Telegram bot for kitesufing chats"
+requires-python = "~=3.11"
 dependencies = [
     "celery>=5.5.0",
     "email-validator>=2.2.0",
@@ -16,16 +16,25 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "pydantic>=2.11.2",
     "pydantic-settings>=2.8.1",
-    "python-telegram-bot[all]==20.8",
+    "python-telegram-bot[all]==20.7",
     "pytz>=2025.2",
     "redis>=5.2.1",
     "requests>=2.32.3",
     "sqlalchemy>=2.0.40",
-    "telegram>=0.0.1",
     "werkzeug>=3.1.3",
 ]
 
 [dependency-groups]
 dev = [
+    "mypy>=1.15.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
     "ruff>=0.11.5",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.pytest.ini_options]
+addopts = "--base-url http://0.0.0.0:5000"
