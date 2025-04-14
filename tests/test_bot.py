@@ -2,12 +2,13 @@
 Test cases for the Telegram bot.
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 
 from config import Language
-from bot import WindSportsBot
-from models import BotMessage, MessageType
+from domain.models.messaging import BotMessage, MessageType
+from interfaces.telegram.bot_controller import TelegramBotController
 
 
 @pytest.mark.asyncio
@@ -17,7 +18,7 @@ class TestTelegramBot:
     @pytest.fixture
     def bot(self):
         """Create a bot instance for testing"""
-        with patch("bot.Application") as mock_application:
+        with patch("interfaces.telegram.bot_controller.Application") as mock_application:
             # Mock the application builder
             mock_builder = MagicMock()
             mock_builder.token.return_value = mock_builder
@@ -25,7 +26,7 @@ class TestTelegramBot:
             mock_application.builder.return_value = mock_builder
 
             # Create the bot with a test token
-            bot = WindSportsBot("test_token")
+            bot = TelegramBotController("test_token")
 
             # Replace async methods with AsyncMock
             bot.start_command = AsyncMock()
@@ -190,7 +191,7 @@ class TestTelegramBot:
         )
 
         # Mock the Bot class
-        with patch("bot.Bot") as mock_bot_class:
+        with patch("telegram.Bot") as mock_bot_class:
             mock_bot_instance = MagicMock()
             mock_bot_instance.send_message = AsyncMock()
             mock_bot_class.return_value = mock_bot_instance

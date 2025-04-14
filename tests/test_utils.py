@@ -2,21 +2,21 @@
 Test cases for utility functions.
 """
 
-import pytest
 from datetime import datetime, time
 from unittest.mock import patch
 
-from config import Language
-from models import MessageType
-from utils import (
-    ms_to_knots,
-    knots_to_ms,
-    is_within_alert_time_window,
-    should_send_wind_alert,
+import pytest
+
+from application.use_cases.weather_utils import (
     get_weather_emoji,
     get_wind_emoji,
-    format_weather_message,
+    is_within_alert_time_window,
+    should_send_wind_alert,
 )
+from application.use_cases.message_formatting import format_weather_message
+from application.use_cases.unit_conversion import knots_to_ms, ms_to_knots
+from config import Language
+from domain.models.messaging import MessageType
 
 
 class TestConversionFunctions:
@@ -44,14 +44,14 @@ class TestConversionFunctions:
 class TestTimeWindowFunctions:
     """Test time window related functions"""
 
-    @patch("utils.datetime")
+    @patch("application.utils.datetime")
     def test_is_within_alert_time_window(self, mock_datetime):
         """Test checking if current time is within alert window"""
         # Set up the mock datetime
         mock_datetime.now.return_value = datetime(2023, 1, 1, 10, 0, 0)  # 10:00 AM
 
         # Set alert window from 8 AM to 5 PM
-        with patch("utils.settings") as mock_settings:
+        with patch("application.utils.settings") as mock_settings:
             mock_settings.ALERT_START_TIME = time(8, 0)
             mock_settings.ALERT_END_TIME = time(17, 0)
 
@@ -59,7 +59,7 @@ class TestTimeWindowFunctions:
 
         # Set time outside the window
         mock_datetime.now.return_value = datetime(2023, 1, 1, 7, 0, 0)  # 7:00 AM
-        with patch("utils.settings") as mock_settings:
+        with patch("application.utils.settings") as mock_settings:
             mock_settings.ALERT_START_TIME = time(8, 0)
             mock_settings.ALERT_END_TIME = time(17, 0)
 
@@ -67,20 +67,20 @@ class TestTimeWindowFunctions:
 
         # Set time at the boundary
         mock_datetime.now.return_value = datetime(2023, 1, 1, 8, 0, 0)  # 8:00 AM
-        with patch("utils.settings") as mock_settings:
+        with patch("application.utils.settings") as mock_settings:
             mock_settings.ALERT_START_TIME = time(8, 0)
             mock_settings.ALERT_END_TIME = time(17, 0)
 
             assert is_within_alert_time_window() == True
 
-    @patch("utils.is_within_alert_time_window")
+    @patch("application.utils.is_within_alert_time_window")
     def test_should_send_wind_alert(self, mock_is_within_window, sample_weather_data):
         """Test determining if a wind alert should be sent"""
         # Set up the mock time window check
         mock_is_within_window.return_value = True
 
         # Set wind threshold to 15 knots
-        with patch("utils.settings") as mock_settings:
+        with patch("application.utils.settings") as mock_settings:
             mock_settings.WIND_THRESHOLD_KNOTS = 15.0
 
             # Test with wind below threshold

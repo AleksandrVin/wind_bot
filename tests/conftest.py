@@ -2,17 +2,21 @@
 Pytest configuration and fixtures for the wind sports Telegram bot tests.
 """
 
-import json
-import os
+import sys
 from datetime import datetime
-from typing import Dict, Any
+from pathlib import Path
+from typing import Any, Dict
+from unittest.mock import MagicMock
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.absolute()
+sys.path.insert(0, str(project_root))
 
 import pytest
 from pytest_mock import MockerFixture
-from unittest.mock import MagicMock, patch
 
-from config import settings, Language
-from models import WeatherData, WindSpeed, WeatherCondition
+from config import Language
+from domain.models.weather import WeatherCondition, WeatherData, WindSpeed
 
 
 @pytest.fixture

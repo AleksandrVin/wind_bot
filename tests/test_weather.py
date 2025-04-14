@@ -6,8 +6,8 @@ import pytest
 from unittest.mock import MagicMock
 
 from config import settings
-from models import WindSpeed, WeatherData
-from weather import WeatherService
+from domain.models.weather import WeatherData, WindSpeed
+from infrastructure.weather.openweather_service import OpenWeatherService
 
 
 class TestWeatherService:
