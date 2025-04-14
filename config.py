@@ -60,7 +60,10 @@ class Settings(BaseSettings):
     )
 
     # Web Settings
-    SESSION_SECRET: str = Field("dev_secret_key", description="Secret key for Flask sessions")
+    WEB_API_URL: str = Field(
+        default_factory=lambda: os.environ.get("WEB_API_URL", "http://localhost:5000/api"),
+        description="Base URL for the internal web API",
+    )
 
     # LangChain Settings
     LANGSMITH_TRACING: bool = Field(True, description="Enable LangSmith tracing")

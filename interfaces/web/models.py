@@ -1,27 +1,19 @@
 """
 Database models for the web interface of the wind sports Telegram bot.
+Using SQLAlchemy ORM.
 """
 
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, Float, Boolean, DateTime
-from sqlalchemy.orm import DeclarativeBase
-from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer
+
+from infrastructure.persistence.database import Base  # Import Base from the new database setup
 
 
-# Define a base class for SQLAlchemy models
-class Base(DeclarativeBase):
-    """Base class for SQLAlchemy models"""
-
-    pass
-
-
-# Create the SQLAlchemy instance
-db = SQLAlchemy(model_class=Base)
-
-
-class BotStats(db.Model):
+class BotStats(Base):
     """Statistics about the bot's usage."""
+
+    __tablename__ = "bot_stats"
 
     id = Column(Integer, primary_key=True)
     messages_processed = Column(Integer, default=0)
@@ -29,11 +21,13 @@ class BotStats(db.Model):
     forecast_commands = Column(Integer, default=0)
     alerts_sent = Column(Integer, default=0)
     active_users = Column(Integer, default=0)
-    timestamp = Column(DateTime, default=datetime.now)
+    timestamp = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
-class WeatherLog(db.Model):
+class WeatherLog(Base):
     """Log of weather data."""
+
+    __tablename__ = "weather_log"
 
     id = Column(Integer, primary_key=True)
     temperature = Column(Float)

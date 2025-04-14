@@ -21,9 +21,10 @@ except Exception as e:
 
 
 def start_web_server():
-    """Start the Flask web server"""
-    logger.info("Starting Web Server...")
-    os.system("gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app")
+    """Start the FastAPI web server using Uvicorn"""
+    logger.info("Starting Web Server with Uvicorn...")
+    # Use Uvicorn to run the app defined in interfaces/web/app.py
+    os.system("uvicorn interfaces.web.app:app --host 0.0.0.0 --port 5000 --reload")
 
 
 async def main():
@@ -31,8 +32,8 @@ async def main():
     logger.info("Starting web server only...")
 
     # Ensure instance directory exists for SQLite database (as fallback)
-    os.makedirs("instance", exist_ok=True)
-    logger.info("Ensured instance directory exists")
+    # os.makedirs("instance", exist_ok=True) # Keep if SQLite fallback needs it
+    # logger.info("Ensured instance directory exists")
 
     # Start the web server in a separate thread
     web_thread = threading.Thread(target=start_web_server)

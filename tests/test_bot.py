@@ -33,7 +33,6 @@ class TestTelegramBot:
             bot.help_command = AsyncMock()
             bot.weather_command = AsyncMock()
             bot.forecast_command = AsyncMock()
-            bot.wind_command = AsyncMock()
             bot.language_command = AsyncMock()
             bot.handle_message = AsyncMock()
             bot.error_handler = AsyncMock()

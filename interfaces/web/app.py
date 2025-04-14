@@ -1,164 +1,162 @@
 """
-Flask web interface for managing and monitoring the wind sports Telegram bot.
+FastAPI web interface for managing and monitoring the wind sports Telegram bot.
 """
 
-import os
 import logging
-from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List
 
-from flask import Flask, render_template, request, jsonify
-from werkzeug.middleware.proxy_fix import ProxyFix
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
+from application.use_cases.add_weather_log import AddWeatherLogUseCase
+from application.use_cases.get_statistics import GetStatisticsUseCase
+from application.use_cases.update_bot_stats import UpdateBotStatsUseCase
+
+# Adjust imports to be relative to the project root or use absolute paths
 from config import settings
-from interfaces.web.models import db, BotStats, WeatherLog
+from infrastructure.persistence.database import get_db
+from infrastructure.persistence.sql_stats_repository import SqlStatsRepository
+from infrastructure.persistence.sql_weather_log_repository import SqlWeatherLogRepository
+from infrastructure.weather.openweather_service import OpenWeatherService
+from interfaces.web import schemas  # API Schemas (Pydantic models)
 
 logger = logging.getLogger(__name__)
 
-# Create the Flask app
-app = Flask(__name__, template_folder="../../templates", static_folder="../../static")
-
-app.secret_key = os.environ.get("SESSION_SECRET", settings.SESSION_SECRET)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
-# Configure the database
-app.config["SQLALCHEMY_DATABASE_URI"] = settings.DATABASE_URI
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = settings.DATABASE_ENGINE_OPTIONS
-
-# Initialize the app with the extension
-db.init_app(app)
+# --- Dependency Injection Setup --- #
 
 
-@app.route("/")
-def index():
+def get_stats_repo(db: Session = Depends(get_db)) -> SqlStatsRepository:
+    return SqlStatsRepository(db)
+
+
+def get_weather_log_repo(db: Session = Depends(get_db)) -> SqlWeatherLogRepository:
+    return SqlWeatherLogRepository(db)
+
+
+# --- FastAPI App Setup --- #
+
+app = FastAPI(title="Wind Bot Web UI")
+
+# Mount static files (CSS, JS) - relative to project root
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Setup Jinja2 templates - relative to project root
+templates = Jinja2Templates(directory="templates")
+
+# Initialize the weather service
+weather_service = OpenWeatherService(
+    api_key=settings.OPENWEATHER_API_KEY, latitude=settings.LATITUDE, longitude=settings.LONGITUDE
+)
+
+# --- FastAPI Path Operations (Routes) --- #
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(
+    request: Request,
+    stats_repo: SqlStatsRepository = Depends(get_stats_repo),
+    weather_repo: SqlWeatherLogRepository = Depends(get_weather_log_repo),
+):
     """Render the home page."""
+    error_message = None
     try:
-        # Get the latest stats
-        stats = BotStats.query.order_by(BotStats.timestamp.desc()).first()
+        use_case = GetStatisticsUseCase(stats_repo, weather_repo)
+        latest_stats, recent_logs = use_case.execute_dashboard()
 
-        # Get recent weather logs (last 24 hours)
-        recent_weather = (
-            WeatherLog.query.filter(WeatherLog.timestamp >= datetime.now() - timedelta(days=1))
-            .order_by(WeatherLog.timestamp.desc())
-            .limit(10)
-            .all()
+        current_weather = weather_service.get_current_weather()
+        weather_condition = ""
+        if current_weather and current_weather.weather_conditions:
+            weather_condition = current_weather.weather_conditions[0].main
+
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "stats": latest_stats,
+                "current_weather": current_weather,
+                "weather_condition": weather_condition,
+                "weather_logs": recent_logs,
+                "config": settings,
+            },
         )
-
-        return render_template("index.html", stats=stats, recent_weather=recent_weather)
     except Exception as e:
-        logger.error(f"Error rendering index page: {e}")
-        return render_template("index.html", error=str(e))
+        logger.error(f"Error rendering index page: {e}", exc_info=True)
+        error_message = "Failed to load dashboard data."  # User-friendly error
+        return templates.TemplateResponse("index.html", {"request": request, "error": error_message})
 
 
-@app.route("/stats")
-def stats():
+@app.get("/stats", response_class=HTMLResponse)
+async def stats_page(
+    request: Request,
+    stats_repo: SqlStatsRepository = Depends(get_stats_repo),
+    weather_repo: SqlWeatherLogRepository = Depends(get_weather_log_repo),
+):
     """Render the statistics page."""
+    error_message = None
     try:
-        # Get all stats ordered by timestamp
-        all_stats = BotStats.query.order_by(BotStats.timestamp.desc()).all()
+        use_case = GetStatisticsUseCase(stats_repo, weather_repo)
+        all_stats, weather_logs = use_case.execute_stats_page()
+        latest_stats = all_stats[0] if all_stats else None
 
-        # Calculate daily stats (simplified version)
-        daily_stats = []
-        weather_logs = WeatherLog.query.order_by(WeatherLog.timestamp.desc()).all()
-
-        return render_template("stats.html", all_stats=all_stats, daily_stats=daily_stats, weather_logs=weather_logs)
+        return templates.TemplateResponse(
+            "stats.html",
+            {
+                "request": request,
+                "all_stats": all_stats,
+                "latest_stats": latest_stats,
+                "stats_data": all_stats[:20],  # Pass limited data for charts
+                "weather_logs": weather_logs[:50],  # Limit logs displayed
+            },
+        )
     except Exception as e:
-        logger.error(f"Error rendering stats page: {e}")
-        return render_template("stats.html", error=str(e))
+        logger.error(f"Error rendering stats page: {e}", exc_info=True)
+        error_message = "Failed to load statistics data."
+        return templates.TemplateResponse("stats.html", {"request": request, "error": error_message})
 
 
-@app.route("/api/add_weather_log", methods=["POST"])
-def add_weather_log():
+@app.post("/api/add_weather_log", response_model=schemas.WeatherLogRead, status_code=201)
+async def add_weather_log(
+    log_data: schemas.WeatherLogCreate, weather_repo: SqlWeatherLogRepository = Depends(get_weather_log_repo)
+):
     """API endpoint to add a weather log entry."""
     try:
-        data = request.json
-
-        weather_log = WeatherLog(
-            temperature=data.get("temperature", 0),
-            wind_speed_knots=data.get("wind_speed_knots", 0),
-            wind_speed_ms=data.get("wind_speed_ms", 0),
-            has_rain=data.get("has_rain", False),
-        )
-
-        db.session.add(weather_log)
-        db.session.commit()
-
-        return jsonify({"message": "Weather log added successfully"}), 201
-    except Exception as e:
-        logger.error(f"Error adding weather log: {e}")
-        return jsonify({"error": str(e)}), 500
+        use_case = AddWeatherLogUseCase(weather_repo)
+        # Pass the Pydantic model dict to the use case
+        created_log = use_case.execute(log_data.model_dump())
+        # FastAPI will automatically convert the ORM model to the response_model
+        return created_log
+    except Exception:
+        # Error already logged in use case/repo
+        raise HTTPException(status_code=500, detail="Failed to add weather log.")
 
 
-@app.route("/api/update_stats", methods=["POST"])
-def update_stats():
+@app.post("/api/update_stats", response_model=schemas.BotStatsRead, status_code=200)
+async def update_stats(stats_update: schemas.BotStatsUpdate, stats_repo: SqlStatsRepository = Depends(get_stats_repo)):
     """API endpoint to update bot statistics."""
     try:
-        data = request.json
-
-        # Get the latest stats or create new if none exist
-        stats = BotStats.query.order_by(BotStats.timestamp.desc()).first()
-        if not stats:
-            stats = BotStats()
-            db.session.add(stats)
-
-        # Update the stats based on the data received
-        if "messages_processed" in data:
-            stats.messages_processed += data["messages_processed"]
-        if "weather_commands" in data:
-            stats.weather_commands += data["weather_commands"]
-        if "forecast_commands" in data:
-            stats.forecast_commands += data["forecast_commands"]
-        if "alerts_sent" in data:
-            stats.alerts_sent += data["alerts_sent"]
-        if "active_users" in data:
-            stats.active_users = data["active_users"]
-
-        db.session.commit()
-
-        return jsonify({"message": "Stats updated successfully"}), 201
-    except Exception as e:
-        logger.error(f"Error updating stats: {e}")
-        return jsonify({"error": str(e)}), 500
+        use_case = UpdateBotStatsUseCase(stats_repo)
+        # Pass the Pydantic model dict (excluding unset fields) to the use case
+        updated_stats = use_case.execute(stats_update.model_dump(exclude_unset=True))
+        return updated_stats
+    except Exception:
+        # Error already logged in use case/repo
+        raise HTTPException(status_code=500, detail="Failed to update bot statistics.")
 
 
-@app.route("/api/get_recent_weather", methods=["GET"])
-def get_recent_weather():
+@app.get("/api/get_recent_weather", response_model=List[schemas.WeatherLogRead])
+async def get_recent_weather(hours: int = 24, weather_repo: SqlWeatherLogRepository = Depends(get_weather_log_repo)):
     """API endpoint to get recent weather data."""
     try:
-        hours = request.args.get("hours", 24, type=int)
-
-        # Get weather logs for the specified time period
-        logs = (
-            WeatherLog.query.filter(WeatherLog.timestamp >= datetime.now() - timedelta(hours=hours))
-            .order_by(WeatherLog.timestamp.asc())
-            .all()
-        )
-
-        data = []
-        for log in logs:
-            data.append(
-                {
-                    "timestamp": log.timestamp.isoformat(),
-                    "temperature": log.temperature,
-                    "wind_speed_knots": log.wind_speed_knots,
-                    "wind_speed_ms": log.wind_speed_ms,
-                    "has_rain": log.has_rain,
-                }
-            )
-
-        return jsonify(data)
-    except Exception as e:
-        logger.error(f"Error getting recent weather data: {e}")
-        return jsonify({"error": str(e)}), 500
+        use_case = GetStatisticsUseCase(stats_repo=None, weather_repo=weather_repo)  # Stats repo not needed here
+        logs = use_case.execute_recent_weather(hours=hours)
+        return logs
+    except Exception:
+        # Error already logged in use case/repo
+        raise HTTPException(status_code=500, detail="Failed to retrieve recent weather data.")
 
 
-# Create database tables on startup
-with app.app_context():
-    db.create_all()
-
-    # Initialize stats if none exist
-    if BotStats.query.count() == 0:
-        stats = BotStats()
-        db.session.add(stats)
-        db.session.commit()
-        logger.info("Initialized default bot stats")
+# Note: The __main__ block for uvicorn.run is removed
+# It should only be in the main entrypoint script (e.g., root app.py or main.py)

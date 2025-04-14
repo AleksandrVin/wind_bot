@@ -3,7 +3,7 @@ Telegram bot interface for the wind sports Telegram bot.
 """
 
 import logging
-from datetime import datetime
+from typing import Dict
 
 import requests
 from telegram import Update
@@ -32,11 +32,12 @@ class TelegramBotController:
         self.application = Application.builder().token(token).build()
         self.weather_service = OpenWeatherService()
         self.llm_service = LangChainService()
-        self.web_api_url = "http://localhost:5000/api"  # URL to the web API
+        self.web_api_url = settings.WEB_API_URL  # Use URL from settings
         self.active_users = set()  # Set to track active users
 
         # Register handlers
         self._register_handlers()
+        logger.info(f"Telegram Bot Controller initialized. Web API URL: {self.web_api_url}")
 
     def _register_handlers(self) -> None:
         """Register command and message handlers"""
@@ -353,54 +354,37 @@ class TelegramBotController:
             raise
 
     def _log_weather_data(self, weather_data: WeatherData) -> None:
-        """Log weather data to the web interface"""
+        """Log weather data by sending it to the web API"""
         try:
-            # Convert datetime objects to strings for JSON serialization
-            data = {
-                "timestamp": weather_data.timestamp.isoformat(),
+            log_payload = {
                 "temperature": weather_data.temperature,
-                "wind_speed_ms": weather_data.wind.speed_ms,
                 "wind_speed_knots": weather_data.wind.speed_knots,
-                "wind_gust_ms": weather_data.wind.gust_ms,
-                "wind_gust_knots": weather_data.wind.gust_knots,
-                "humidity": weather_data.humidity,
-                "clouds": weather_data.clouds,
-                "conditions": [c.main for c in weather_data.weather_conditions],
+                "wind_speed_ms": weather_data.wind.speed_ms,
+                "has_rain": bool(weather_data.rain_1h or weather_data.rain_3h),
             }
-
-            response = requests.post(
-                f"{self.web_api_url}/add_weather_log",
-                json=data,
-                timeout=3,  # Short timeout to avoid blocking the bot
-            )
-
-            if response.status_code != 201:
-                logger.warning(f"Failed to log weather data in web interface: {response.text}")
-
+            response = requests.post(f"{self.web_api_url}/add_weather_log", json=log_payload, timeout=5)
+            response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+            logger.debug("Successfully logged weather data to web API.")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to log weather data to web interface: {e}")
         except Exception as e:
-            logger.error(f"Error logging weather data in web interface: {e}")
+            logger.error(f"Unexpected error logging weather data: {e}", exc_info=True)
 
     def _update_stats(self, stat_name: str, count: int = 1) -> None:
-        """Update bot statistics in the web interface"""
+        """Update bot stats by sending data to the web API"""
         try:
-            # Create data dictionary
-            data = {"stat_name": stat_name, "count": count, "timestamp": datetime.now().isoformat()}
+            stats_payload: Dict[str, int] = {stat_name: count}
+            # Always include active users count
+            stats_payload["active_users"] = len(self.active_users)
 
-            # Also update active users
-            if "active_users" not in data:
-                data["active_users"] = len(self.active_users)
-
-            response = requests.post(
-                f"{self.web_api_url}/update_stats",
-                json=data,
-                timeout=3,  # Short timeout to avoid blocking the bot
-            )
-
-            if response.status_code != 201:
-                logger.warning(f"Failed to update stats in web interface: {response.text}")
-
+            response = requests.post(f"{self.web_api_url}/update_stats", json=stats_payload, timeout=5)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            logger.debug(f"Successfully updated stats ({stat_name}) in web API.")
+        except requests.exceptions.RequestException as e:
+            # Log the payload that failed for debugging
+            logger.warning(f"Failed to update stats in web interface: {e}. Payload: {stats_payload}")
         except Exception as e:
-            logger.error(f"Error updating stats in web interface: {e}")
+            logger.error(f"Unexpected error updating stats: {e}", exc_info=True)
 
     def _track_active_user(self, update: Update) -> None:
         """Track active users for statistics"""
