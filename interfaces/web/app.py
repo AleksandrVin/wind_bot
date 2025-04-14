@@ -108,8 +108,6 @@ def update_stats():
             stats.weather_commands += data["weather_commands"]
         if "forecast_commands" in data:
             stats.forecast_commands += data["forecast_commands"]
-        if "wind_commands" in data:
-            stats.wind_commands += data["wind_commands"]
         if "alerts_sent" in data:
             stats.alerts_sent += data["alerts_sent"]
         if "active_users" in data:

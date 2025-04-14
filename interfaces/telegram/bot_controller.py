@@ -45,7 +45,6 @@ class TelegramBotController:
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("weather", self.weather_command))
         self.application.add_handler(CommandHandler("forecast", self.forecast_command))
-        self.application.add_handler(CommandHandler("wind", self.wind_command))
         self.application.add_handler(CommandHandler("language", self.language_command))
         self.application.add_handler(CommandHandler("debug", self.debug_command))
 
@@ -96,7 +95,6 @@ class TelegramBotController:
             "*Available Commands:*\n\n"
             "/weather - Get current weather conditions\n"
             "/forecast - Get today's forecast\n"
-            "/wind - Get current wind speed\n"
             "/language - Set your preferred language (en/ru)\n"
             "/help - Show this help message"
         )
@@ -157,59 +155,6 @@ class TelegramBotController:
 
         except Exception as e:
             logger.error(f"Error in forecast_command: {e}")
-            await update.message.reply_text("Sorry, there was an error processing your request.")
-
-    async def wind_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle the /wind command"""
-        try:
-            weather_data = self.weather_service.get_current_weather()
-
-            if not weather_data:
-                await update.message.reply_text("Sorry, I couldn't retrieve the wind data. Please try again later.")
-                return
-
-            # Get user's language preference
-            language = self._get_user_language(context)
-
-            # Get the wind information
-            wind_speed_knots = weather_data.wind.speed_knots
-            wind_speed_ms = weather_data.wind.speed_ms
-
-            gust_text = ""
-            if weather_data.wind.gust_knots:
-                gust_text = f"\nGusts: *{weather_data.wind.gust_knots:.1f} kn / {weather_data.wind.gust_ms:.1f} m/s*"
-
-            location_info = ""
-            if weather_data.location_name:
-                if language == Language.ENGLISH:
-                    location_info = f"\nLocation: {weather_data.location_name}"
-                    if weather_data.country_code:
-                        location_info += f", {weather_data.country_code}"
-                else:
-                    location_info = f"\nЛокация: {weather_data.location_name}"
-                    if weather_data.country_code:
-                        location_info += f", {weather_data.country_code}"
-
-            if language == Language.ENGLISH:
-                message = (
-                    f"*Current Wind Speed*\n\n"
-                    f"*{wind_speed_knots:.1f} knots / {wind_speed_ms:.1f} m/s*{gust_text}{location_info}"
-                )
-            else:
-                message = (
-                    f"*Текущая скорость ветра*\n\n"
-                    f"*{wind_speed_knots:.1f} узлов / {wind_speed_ms:.1f} м/с*{gust_text}{location_info}"
-                )
-
-            # Send the message
-            await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
-
-            # Log stats
-            self._update_stats("wind_commands")
-            self._log_weather_data(weather_data)
-
-        except Exception as e:
-            logger.error(f"Error in wind_command: {e}")
             await update.message.reply_text("Sorry, there was an error processing your request.")
 
     async def debug_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -311,7 +256,6 @@ class TelegramBotController:
                     "Пожалуйста, используйте следующие команды:\n\n"
                     "/weather - Текущие погодные условия\n"
                     "/forecast - Прогноз на сегодня\n"
-                    "/wind - Текущая скорость ветра\n"
                     "/language - Выбрать язык (en/ru)\n"
                     "/help - Показать это сообщение помощи"
                 )
@@ -321,7 +265,6 @@ class TelegramBotController:
                     "Please use the following commands:\n\n"
                     "/weather - Current weather conditions\n"
                     "/forecast - Today's forecast\n"
-                    "/wind - Current wind speed\n"
                     "/language - Set language (en/ru)\n"
                     "/help - Show this help message"
                 )

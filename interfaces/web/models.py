@@ -27,7 +27,6 @@ class BotStats(db.Model):
     messages_processed = Column(Integer, default=0)
     weather_commands = Column(Integer, default=0)
     forecast_commands = Column(Integer, default=0)
-    wind_commands = Column(Integer, default=0)
     alerts_sent = Column(Integer, default=0)
     active_users = Column(Integer, default=0)
     timestamp = Column(DateTime, default=datetime.now)
