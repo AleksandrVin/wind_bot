@@ -4,13 +4,11 @@ Imports the FastAPI app instance from the interfaces.web.app module.
 """
 
 import logging
+from interfaces.web.app import app
 
 # Configure logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-# Import the FastAPI app instance from its new location
-from interfaces.web.app import app
 
 # The Uvicorn server will look for this `app` variable.
 

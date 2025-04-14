@@ -2,16 +2,16 @@
 Celery tasks for the wind sports Telegram bot.
 """
 
-import logging
 import asyncio
+import logging
 from datetime import datetime
 
+from application.utils.weather_utils import should_send_wind_alert
 from celery_app import celery_app
 from config import settings
 from domain.models.messaging import BotMessage, MessageType
 from infrastructure.weather.openweather_service import OpenWeatherService
 from interfaces.telegram.bot_controller import TelegramBotController
-from application.use_cases.weather_utils import should_send_wind_alert
 
 # Configure logging
 logger = logging.getLogger(__name__)

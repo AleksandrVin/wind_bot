@@ -1,6 +1,7 @@
 """
-Use cases for unit conversions in the wind sports Telegram bot.
+Utility functions for unit conversions.
 """
+
 
 def ms_to_knots(speed_ms: float) -> float:
     """Convert wind speed from m/s to knots"""

@@ -7,24 +7,21 @@ import logging
 import os
 import sys
 from time import sleep
-
-# Add the project root directory to the Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-sys.path.insert(0, project_root)
-
 from sqlalchemy.exc import OperationalError
-
 from infrastructure.persistence.database import Base, SessionLocal, engine
 
 # Import models to ensure they are registered with Base
 from interfaces.web.models import BotStats
+
+# Add the project root directory to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+sys.path.insert(0, project_root)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 MAX_RETRIES = 5
 RETRY_DELAY = 5  # seconds
-
 
 def init_db():
     """Initialize the database schema."""

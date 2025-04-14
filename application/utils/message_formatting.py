@@ -1,11 +1,11 @@
 """
-Message formatting for the wind sports Telegram bot.
+Utility functions for formatting messages (e.g., for Telegram).
 """
 
+from application.utils.weather_utils import get_weather_emoji, get_wind_emoji
 from config import Language
-from domain.models.weather import WeatherData
 from domain.models.messaging import MessageType
-from application.use_cases.weather_utils import get_weather_emoji, get_wind_emoji
+from domain.models.weather import WeatherData
 
 
 def format_weather_message(weather_data: WeatherData, message_type: MessageType, language: str = "en") -> str:
@@ -20,14 +20,15 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
     if weather_data.wind.gust_knots:
         gust_text = f" (gusts: {weather_data.wind.gust_knots:.1f} kn / {weather_data.wind.gust_ms:.1f} m/s)"
 
+    location_info = ""
+    if weather_data.location_name:
+        loc_prefix = " for " if language == Language.ENGLISH else " для "
+        location_info = f"{loc_prefix}{weather_data.location_name}"
+        if weather_data.country_code:
+            location_info += f", {weather_data.country_code}"
+
     if language == Language.ENGLISH:
         if message_type == MessageType.CURRENT_WEATHER:
-            location_info = ""
-            if weather_data.location_name:
-                location_info = f" for {weather_data.location_name}"
-                if weather_data.country_code:
-                    location_info += f", {weather_data.country_code}"
-
             return (
                 f"*Current Weather*{location_info} {emoji} ({date_str}, {time_str})\n\n"
                 f"🌡️ Temperature: *{weather_data.temperature:.1f}°C* (feels like {weather_data.feels_like:.1f}°C)\n"
@@ -39,12 +40,6 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 f"Conditions: {', '.join(c.description for c in weather_data.weather_conditions)}"
             )
         elif message_type == MessageType.DAILY_FORECAST:
-            location_info = ""
-            if weather_data.location_name:
-                location_info = f" for {weather_data.location_name}"
-                if weather_data.country_code:
-                    location_info += f", {weather_data.country_code}"
-
             return (
                 f"*Daily Forecast*{location_info} {emoji} ({date_str})\n\n"
                 f"🌡️ Temperature: *{weather_data.temperature:.1f}°C* (feels like {weather_data.feels_like:.1f}°C)\n"
@@ -56,12 +51,6 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 f"Have a great day! 🏄‍♂️🪁"
             )
         elif message_type == MessageType.WIND_ALERT:
-            location_info = ""
-            if weather_data.location_name:
-                location_info = f" for {weather_data.location_name}"
-                if weather_data.country_code:
-                    location_info += f", {weather_data.country_code}"
-
             return (
                 f"*Wind Alert!*{location_info} {wind_emoji}\n\n"
                 f"Current wind speed is *{weather_data.wind.speed_knots:.1f} kn / {weather_data.wind.speed_ms:.1f} m/s*{gust_text}\n"
@@ -69,12 +58,6 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
             )
     elif language == Language.RUSSIAN:
         if message_type == MessageType.CURRENT_WEATHER:
-            location_info = ""
-            if weather_data.location_name:
-                location_info = f" для {weather_data.location_name}"
-                if weather_data.country_code:
-                    location_info += f", {weather_data.country_code}"
-
             return (
                 f"*Текущая погода*{location_info} {emoji} ({date_str}, {time_str})\n\n"
                 f"🌡️ Температура: *{weather_data.temperature:.1f}°C* (ощущается как {weather_data.feels_like:.1f}°C)\n"
@@ -86,12 +69,6 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 f"Условия: {', '.join(c.description for c in weather_data.weather_conditions)}"
             )
         elif message_type == MessageType.DAILY_FORECAST:
-            location_info = ""
-            if weather_data.location_name:
-                location_info = f" для {weather_data.location_name}"
-                if weather_data.country_code:
-                    location_info += f", {weather_data.country_code}"
-
             return (
                 f"*Прогноз на день*{location_info} {emoji} ({date_str})\n\n"
                 f"🌡️ Температура: *{weather_data.temperature:.1f}°C* (ощущается как {weather_data.feels_like:.1f}°C)\n"
@@ -103,12 +80,6 @@ def format_weather_message(weather_data: WeatherData, message_type: MessageType,
                 f"Хорошего дня! 🏄‍♂️🪁"
             )
         elif message_type == MessageType.WIND_ALERT:
-            location_info = ""
-            if weather_data.location_name:
-                location_info = f" для {weather_data.location_name}"
-                if weather_data.country_code:
-                    location_info += f", {weather_data.country_code}"
-
             return (
                 f"*Ветровая тревога!*{location_info} {wind_emoji}\n\n"
                 f"Текущая скорость ветра *{weather_data.wind.speed_knots:.1f} уз / {weather_data.wind.speed_ms:.1f} м/с*{gust_text}\n"

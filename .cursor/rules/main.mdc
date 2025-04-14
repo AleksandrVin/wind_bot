@@ -11,6 +11,7 @@ Docker is used with docker compose to start project [docker-compose.yml](mdc:doc
 
 Packet manager: uv [pyproject.toml](mdc:pyproject.toml)
 Linter: ruff (uv run ruff check\format)
+Always use pydantic(db models, api models, internal data objects, llms) if can be applied
 project tree:
 
 .

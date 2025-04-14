@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from domain.models.weather import WeatherData
 from infrastructure.weather.openweather_service import OpenWeatherService
-from application.use_cases.unit_conversion import ms_to_knots, knots_to_ms
+from application.utils.unit_conversion import ms_to_knots, knots_to_ms
 
 
 class WindSpeedConversion(BaseModel):

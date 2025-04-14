@@ -11,7 +11,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-from application.use_cases.message_formatting import format_weather_message
+from application.utils.message_formatting import format_weather_message
 from config import Language, settings
 from domain.models.messaging import BotMessage, MessageType
 from domain.models.weather import WeatherData
@@ -243,115 +243,71 @@ class TelegramBotController:
             await update.message.reply_text("Язык установлен на русский! 🇷🇺", parse_mode=ParseMode.MARKDOWN)
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle text messages with hardcoded responses instead of LLM"""
+        """Handle text messages using LLMService"""
         try:
             # Get user's language preference
             language = self._get_user_language(context)
+            user_message = update.message.text
 
+            # Acknowledge receipt (optional)
             await update.message.chat.send_action(action="typing")
 
-            # Provide a hardcoded response about available commands
-            if language == Language.RUSSIAN:
-                response = (
-                    "Я могу предоставить информацию о погоде и ветре. "
-                    "Пожалуйста, используйте следующие команды:\n\n"
-                    "/weather - Текущие погодные условия\n"
-                    "/forecast - Прогноз на сегодня\n"
-                    "/language - Выбрать язык (en/ru)\n"
-                    "/help - Показать это сообщение помощи"
-                )
-            else:
-                response = (
-                    "I can provide weather and wind information. "
-                    "Please use the following commands:\n\n"
-                    "/weather - Current weather conditions\n"
-                    "/forecast - Today's forecast\n"
-                    "/language - Set language (en/ru)\n"
-                    "/help - Show this help message"
-                )
+            # Process message with LLM
+            response_text = await self.llm_service.process_message(user_message, language)
 
-            # Send the response
-            await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
 
-            # Log the message processing
-            self._update_stats("messages_processed")
+            # Log stats
+            self._update_stats("messages_processed")  # Count all handled messages
 
         except Exception as e:
-            logger.error(f"Error handling message: {e}")
+            logger.error(f"Error handling message: {e}", exc_info=True)
+            error_msg = (
+                "Sorry, I couldn't process your request right now."
+                if language == Language.ENGLISH
+                else "Извините, я не смог обработать ваш запрос сейчас."
+            )
+            await update.message.reply_text(error_msg)
 
-            language = self._get_user_language(context)
-            # Send a generic error message based on the language preference
-            if language == Language.RUSSIAN:
-                await update.message.reply_text("Извините, произошла ошибка при обработке вашего сообщения.")
-            else:
-                await update.message.reply_text("Sorry, there was an error processing your message.")
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Log Errors caused by Updates."""
+        logger.error(msg="Exception while handling an update:", exc_info=context.error)
+        # Optionally send a message to the user or admin
+        if isinstance(update, Update) and update.effective_message:
+            error_msg = (
+                "Sorry, an internal error occurred."
+                if self._get_user_language(context) == Language.ENGLISH
+                else "Извините, произошла внутренняя ошибка."
+            )
+            await update.effective_message.reply_text(error_msg)
 
-    async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle errors in the Telegram update pipeline"""
-        logger.error(f"Exception while handling an update: {context.error}")
-
-        # Log the error details
-        if update:
-            logger.error(f"Update: {update}")
+        # You might want to track specific Telegram errors
+        if isinstance(context.error, TelegramError):
+            logger.warning(f"Telegram API Error: {context.error}")
 
     def _get_user_language(self, context: ContextTypes.DEFAULT_TYPE) -> str:
-        """Get the user's preferred language"""
-        # Default language
-        language = settings.DEFAULT_LANGUAGE
-
-        # Check if the user has a language preference
-        if context and context.user_data and "language" in context.user_data:
-            language = context.user_data["language"]
-
-        return language
+        """Get the user's preferred language from context or default."""
+        return context.user_data.get("language", settings.DEFAULT_LANGUAGE)
 
     async def send_message(self, bot_message: BotMessage) -> None:
-        """Send a message using the bot"""
+        """Format and send a message using the bot."""
         try:
-            # Get chat ID
-            chat_id = bot_message.chat_id
-
-            # Get the bot instance
-            bot = self.application.bot
-
-            # Format the message based on type and language
-            if bot_message.message_type == MessageType.ERROR:
-                # Send error message
-                if bot_message.error_message:
-                    await bot.send_message(
-                        chat_id=chat_id, text=bot_message.error_message, parse_mode=ParseMode.MARKDOWN
-                    )
-                else:
-                    # Default error message
-                    if bot_message.language == Language.RUSSIAN:
-                        await bot.send_message(
-                            chat_id=chat_id,
-                            text="Произошла ошибка. Пожалуйста, попробуйте позже.",
-                            parse_mode=ParseMode.MARKDOWN,
-                        )
-                    else:
-                        await bot.send_message(
-                            chat_id=chat_id,
-                            text="An error occurred. Please try again later.",
-                            parse_mode=ParseMode.MARKDOWN,
-                        )
-            else:
-                # Weather-related message
-                if bot_message.weather_data:
-                    # Format the weather message
-                    message = format_weather_message(
-                        bot_message.weather_data, bot_message.message_type, bot_message.language
-                    )
-
-                    # Send the message
-                    await bot.send_message(chat_id=chat_id, text=message, parse_mode=ParseMode.MARKDOWN)
-
+            message_text = format_weather_message(
+                bot_message.weather_data, bot_message.message_type, bot_message.language
+            )
+            await self.application.bot.send_message(
+                chat_id=bot_message.chat_id, text=message_text, parse_mode=ParseMode.MARKDOWN
+            )
+            logger.info(f"Sent message type {bot_message.message_type} to chat {bot_message.chat_id}")
         except TelegramError as e:
             logger.error(f"Telegram error sending message to {bot_message.chat_id}: {e}")
-            raise
+            # Handle specific errors like bot blocked, chat not found etc.
+            if "bot was blocked by the user" in str(e):
+                logger.warning(f"Bot blocked by user in chat {bot_message.chat_id}. Removing from active users?")
+                # Consider removing chat_id from settings.ALLOWED_CHAT_IDS if applicable
+            # Re-raise or handle as needed
         except Exception as e:
-            logger.error(f"Error sending message: {e}")
-            raise
+            logger.error(f"Failed to send message to {bot_message.chat_id}: {e}", exc_info=True)
 
     def _log_weather_data(self, weather_data: WeatherData) -> None:
         """Log weather data by sending it to the web API"""
@@ -396,20 +352,19 @@ class TelegramBotController:
         self._track_active_user(update)
 
     async def start(self) -> None:
-        """Start the bot"""
-        # Set up hooks to update our web interface
-        self.application.add_handler(
-            MessageHandler(filters.ALL, self._track_active_user_handler),
-            group=-1,  # Run before other handlers
-        )
-
-        logger.info("Bot started")
+        """Start the bot polling."""
+        logger.info("Starting Telegram bot polling...")
+        # Add active user tracking middleware if needed
+        # self.application.add_handler(TypeHandler(Update, self._track_active_user_handler), group=-1)
         await self.application.initialize()
         await self.application.start()
         await self.application.updater.start_polling()
+        logger.info("Telegram bot started.")
 
     async def stop(self) -> None:
-        """Stop the bot"""
+        """Stop the bot polling."""
+        logger.info("Stopping Telegram bot polling...")
         await self.application.updater.stop()
         await self.application.stop()
         await self.application.shutdown()
+        logger.info("Telegram bot stopped.")

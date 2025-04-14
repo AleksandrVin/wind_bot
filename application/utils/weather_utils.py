@@ -1,9 +1,10 @@
 """
-Weather utility functions for the wind sports Telegram bot.
+Utility functions related to weather data processing and presentation.
 """
 
 from datetime import datetime
 
+from application.utils.unit_conversion import ms_to_knots
 from config import settings
 from domain.models.weather import WeatherData
 
@@ -17,12 +18,14 @@ def is_within_alert_time_window() -> bool:
 def should_send_wind_alert(weather_data: WeatherData) -> bool:
     """
     Determine if a wind alert should be sent based on current weather data
-    and threshold settings
+    and threshold settings.
+    Assumes wind speed in WeatherData is in m/s.
     """
     if not is_within_alert_time_window():
         return False
 
-    wind_speed_knots = weather_data.wind.speed_knots
+    # Convert m/s from weather_data to knots for comparison
+    wind_speed_knots = ms_to_knots(weather_data.wind.speed_ms)
     return wind_speed_knots >= settings.WIND_THRESHOLD_KNOTS
 
 
@@ -58,7 +61,7 @@ def get_weather_emoji(weather_data: WeatherData) -> str:
 
 
 def get_wind_emoji(speed_knots: float) -> str:
-    """Get appropriate emoji for wind speed"""
+    """Get appropriate emoji for wind speed in knots."""
     if speed_knots < 5:
         return "🪶"  # light breeze
     elif speed_knots < 10:
