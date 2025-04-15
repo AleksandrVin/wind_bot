@@ -1,47 +1,55 @@
 """
-Database session management for SQLAlchemy.
+Database connection setup using SQLModel.
+Uses settings from config.py.
+Provides an engine and a session factory.
 """
 
 import logging
-import os
 
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+# Use async engine and session
+from sqlalchemy.ext.asyncio import create_async_engine  # Import from SQLAlchemy
 from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel  # create_engine is no longer needed here
+from sqlmodel.ext.asyncio.session import AsyncSession  # Correct import for AsyncSession
 
 from config import settings
 
+# Models are no longer imported here; SQLModel handles metadata registration
+# when the model classes inheriting from it are defined/imported elsewhere (e.g., in init_db.py).
+# from domain.models.stats import BotStats # noqa - REMOVED
+# from domain.models.weather import WeatherLog # noqa - REMOVED
+
 logger = logging.getLogger(__name__)
 
-# Ensure the directory for SQLite exists if used
-if settings.DATABASE_URI.startswith("sqlite:///"):
-    db_path = settings.DATABASE_URI.replace("sqlite:///", "")
-    db_dir = os.path.dirname(os.path.abspath(db_path))
-    os.makedirs(db_dir, exist_ok=True)
-    logger.info(f"Ensured SQLite directory exists: {db_dir}")
+# Create the async engine using SQLAlchemy's function
+async_engine = create_async_engine(settings.DATABASE_URI, echo=settings.DEBUG, future=True)
 
-# Create the SQLAlchemy engine
-engine = create_engine(
-    settings.DATABASE_URI,
-    connect_args={"check_same_thread": False} if settings.DATABASE_URI.startswith("sqlite") else {},
-    pool_pre_ping=settings.DATABASE_ENGINE_OPTIONS.get("pool_pre_ping", True),
-    pool_recycle=settings.DATABASE_ENGINE_OPTIONS.get("pool_recycle", 300),
+# Create an async session factory
+AsyncSessionLocal = sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,  # Use AsyncSession from SQLModel
+    expire_on_commit=False,  # Recommended for async use
+    autocommit=False,
+    autoflush=False,
 )
 
-# Create a configured "Session" class
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create a base class for declarative models
-Base = declarative_base()
+async def init_db():
+    """Initialize the database by creating tables. Runs asynchronously."""
+    logger.info("Initializing database...")
+    # Ensure models are imported somewhere before this runs (e.g., in the script calling this)
+    # so SQLModel.metadata is populated.
+    async with async_engine.begin() as conn:
+        try:
+            # await conn.run_sync(SQLModel.metadata.drop_all) # Uncomment to drop tables first
+            await conn.run_sync(SQLModel.metadata.create_all)
+            logger.info("Database tables created successfully (if they didn't exist).")
+        except Exception as e:
+            logger.error(f"Error creating database tables: {e}", exc_info=True)
+            raise
 
 
-def get_db():
-    """Dependency to get a database session."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-logger.info(f"Database engine created for URI: {settings.DATABASE_URI}")
+# Dependency for FastAPI or other frameworks (optional here, more relevant in web layer)
+# async def get_async_session() -> AsyncSession:
+#     async with AsyncSessionLocal() as session:
+#         yield session

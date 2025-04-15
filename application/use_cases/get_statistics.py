@@ -7,7 +7,9 @@ from typing import List, Optional, Tuple
 
 from application.interfaces.stats_repository import AbstractStatsRepository
 from application.interfaces.weather_log_repository import AbstractWeatherLogRepository
-from interfaces.web.models import BotStats, WeatherLog
+
+# Use cases operate on DTOs/Schemas
+from interfaces.web.schemas import BotStatsRead, WeatherLogRead
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ class GetStatisticsUseCase:
         self.stats_repo = stats_repo
         self.weather_repo = weather_repo
 
-    def execute_dashboard(self) -> Tuple[Optional[BotStats], List[WeatherLog]]:
+    def execute_dashboard(self) -> Tuple[Optional[BotStatsRead], List[WeatherLogRead]]:
         """Retrieves data needed for the main dashboard (index page)."""
         logger.info("Executing GetStatisticsUseCase for dashboard")
         try:
@@ -28,7 +30,7 @@ class GetStatisticsUseCase:
             logger.error(f"GetStatisticsUseCase (dashboard) failed: {e}", exc_info=True)
             return None, []  # Return empty data on error
 
-    def execute_stats_page(self) -> Tuple[List[BotStats], List[WeatherLog]]:
+    def execute_stats_page(self) -> Tuple[List[BotStatsRead], List[WeatherLogRead]]:
         """Retrieves data needed for the statistics page."""
         logger.info("Executing GetStatisticsUseCase for stats page")
         try:
@@ -40,7 +42,7 @@ class GetStatisticsUseCase:
             logger.error(f"GetStatisticsUseCase (stats page) failed: {e}", exc_info=True)
             return [], []  # Return empty data on error
 
-    def execute_recent_weather(self, hours: int = 24) -> List[WeatherLog]:
+    def execute_recent_weather(self, hours: int = 24) -> List[WeatherLogRead]:
         """Retrieves recent weather logs for the API endpoint."""
         logger.info(f"Executing GetStatisticsUseCase for recent weather (hours={hours})")
         try:

@@ -1,71 +1,90 @@
 """
-SQLAlchemy implementation of the Bot Statistics repository.
+SQLAlchemy implementation of the Stats Repository.
+Uses SQLModel for models and session management.
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession  # Import AsyncSession
 
 from application.interfaces.stats_repository import AbstractStatsRepository
-from interfaces.web.models import BotStats  # Using the ORM model
+from domain.models.stats import BotStats
+from interfaces.web.schemas import (  # Assuming schemas are still useful
+    BotStatsRead,
+    BotStatsUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class SqlStatsRepository(AbstractStatsRepository):
-    """SQLAlchemy implementation for stats persistence."""
+    """SQLAlchemy repository for bot statistics."""
 
-    def __init__(self, db_session: Session):
-        self.db = db_session
+    def __init__(self, session: AsyncSession):
+        self.session = session
 
-    def get_latest_stats(self) -> Optional[BotStats]:
+    async def get_latest_stats(self) -> Optional[BotStatsRead]:
+        """Retrieve the most recent BotStats record asynchronously."""
         try:
-            return self.db.query(BotStats).order_by(BotStats.timestamp.desc()).first()
+            statement = select(BotStats).order_by(BotStats.timestamp.desc()).limit(1)
+            result = await self.session.exec(statement)
+            db_stats = result.first()
+            if db_stats:
+                return BotStatsRead.from_orm(db_stats)
+            return None
         except Exception as e:
-            logger.error(f"Error fetching latest stats: {e}", exc_info=True)
+            logger.error(f"Error retrieving latest stats: {e}", exc_info=True)
+            # Consider raising a custom repository exception
             return None
 
-    def get_all_stats(self) -> List[BotStats]:
+    async def get_all_stats(self) -> List[BotStatsRead]:
+        """Retrieve all BotStats records asynchronously."""
         try:
-            return self.db.query(BotStats).order_by(BotStats.timestamp.desc()).all()
+            statement = select(BotStats).order_by(BotStats.timestamp.desc())
+            results = await self.session.exec(statement)
+            db_stats_list = results.all()
+            return [BotStatsRead.from_orm(stats) for stats in db_stats_list]
         except Exception as e:
-            logger.error(f"Error fetching all stats: {e}", exc_info=True)
+            logger.error(f"Error retrieving all stats: {e}", exc_info=True)
             return []
 
-    def update_or_create_stats(self, update_data: Dict[str, Any]) -> BotStats:
+    async def update_or_create_stats(self, stats_update: BotStatsUpdate) -> Optional[BotStatsRead]:
+        """Update existing stats for today or create a new record asynchronously."""
+        today = datetime.utcnow().date()
         try:
-            stats = self.get_latest_stats()
-            if not stats:
-                logger.info("No existing stats found, creating new record.")
-                stats = BotStats()
-                self.db.add(stats)
+            # Check if stats for today already exist
+            statement = select(BotStats).where(BotStats.date == today)
+            result = await self.session.exec(statement)
+            db_stats = result.first()
 
-            logger.debug(f"Updating stats with data: {update_data}")
-            for key, value in update_data.items():
-                if value is not None and hasattr(stats, key):
-                    current_value = getattr(stats, key)
-                    if isinstance(current_value, (int, float)) and key != "active_users":
-                        # Increment counters
-                        new_value = current_value + value
-                        setattr(stats, key, new_value)
-                        logger.debug(f"Incremented {key}: {current_value} + {value} -> {new_value}")
-                    else:
-                        # Overwrite values (like active_users)
-                        setattr(stats, key, value)
-                        logger.debug(f"Set {key} to {value}")
+            if db_stats:
+                # Update existing record
+                logger.debug(f"Updating stats for date: {today}")
+                update_data = stats_update.model_dump(exclude_unset=True)
+                for key, value in update_data.items():
+                    if value is not None:
+                        current_value = getattr(db_stats, key)
+                        setattr(db_stats, key, (current_value or 0) + value)
+                db_stats.timestamp = datetime.utcnow()  # Update timestamp
+            else:
+                # Create new record
+                logger.debug(f"Creating new stats record for date: {today}")
+                db_stats = BotStats(
+                    date=today,
+                    timestamp=datetime.utcnow(),
+                    **stats_update.model_dump(),  # Pass all fields from update DTO
+                )
 
-            # Always update timestamp
-            stats.timestamp = datetime.now(timezone.utc)
-            logger.debug(f"Set timestamp to {stats.timestamp}")
+            self.session.add(db_stats)
+            await self.session.commit()
+            await self.session.refresh(db_stats)
+            logger.info(f"Successfully {'updated' if update_data else 'created'} stats for {today}")
+            return BotStatsRead.from_orm(db_stats)
 
-            self.db.commit()
-            self.db.refresh(stats)
-            logger.info(f"Successfully updated/created stats record ID: {stats.id}")
-            return stats
         except Exception as e:
-            logger.error(f"Error updating/creating stats: {e}", exc_info=True)
-            self.db.rollback()
-            # Re-raise the exception to be handled by the use case/endpoint
-            raise
+            logger.error(f"Error updating or creating stats for date {today}: {e}", exc_info=True)
+            await self.session.rollback()  # Rollback on error
+            return None

@@ -1,50 +1,39 @@
 #!/usr/bin/env python
 """
-Run script for the Wind Sports Telegram Bot
+Main script to run the Telegram bot.
 """
 
 import asyncio
 import logging
-import os
-import sys
 
 from config import settings
 from interfaces.telegram.bot_controller import TelegramBotController
 
 # Configure logging
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.DEBUG)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 async def main():
-    """Main function to start the bot"""
-    logger.info("Starting the Wind Sports Telegram Bot...")
-
-    # Check for valid Telegram token
-    if not settings.TELEGRAM_TOKEN:
-        logger.error("No Telegram Bot token provided. Set the TELEGRAM_TOKEN environment variable.")
-        sys.exit(1)
-
-    # Initialize the bot controller
-    bot = TelegramBotController(token=settings.TELEGRAM_TOKEN)
+    """Initialize and run the bot."""
+    logger.info("Initializing bot controller...")
+    bot_controller = TelegramBotController(token=settings.TELEGRAM_TOKEN)
 
     try:
-        # Start the bot
-        await bot.start()
-
-        # Keep the bot running until interrupted
-        stop_signal = asyncio.Future()
-        await stop_signal
-    except asyncio.CancelledError:
-        pass
+        logger.info("Starting bot...")
+        await bot_controller.start()
+        # Keep the script running indefinitely
+        while True:
+            await asyncio.sleep(3600)  # Sleep for an hour
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, stopping bot...")
+    except Exception as e:
+        logger.error(f"An error occurred: {e}", exc_info=True)
     finally:
-        # Ensure we close gracefully
-        await bot.stop()
+        logger.info("Shutting down bot...")
+        await bot_controller.stop()
+        logger.info("Bot shut down complete.")
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot shutting down...")
-        sys.exit(0)
+    asyncio.run(main())

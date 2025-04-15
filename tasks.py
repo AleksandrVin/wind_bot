@@ -1,15 +1,28 @@
 """
 Celery tasks for the wind sports Telegram bot.
+These tasks should primarily instantiate and execute application use cases.
 """
 
 import asyncio
 import logging
 from datetime import datetime
 
-from application.utils.weather_utils import should_send_wind_alert
+from celery import Celery
+from celery.schedules import crontab
+
+# Import Use Cases
+from application.use_cases.process_scheduled_weather_check import ProcessScheduledWeatherCheckUseCase
+from application.use_cases.send_daily_forecast import SendDailyForecastUseCase
 from celery_app import celery_app
 from config import settings
 from domain.models.messaging import BotMessage, MessageType
+
+# Import Infrastructure implementations needed for Use Case instantiation
+# (Ideally use a Dependency Injection container/factory)
+from infrastructure.notifications.telegram_sender import TelegramNotificationService
+from infrastructure.persistence.redis_alert_state_repository import RedisAlertStateRepository
+from infrastructure.persistence.sql_stats_repository import SqlStatsRepository
+from infrastructure.persistence.sql_weather_log_repository import SqlWeatherLogRepository
 from infrastructure.weather.openweather_service import OpenWeatherService
 from interfaces.telegram.bot_controller import TelegramBotController
 
@@ -28,33 +41,66 @@ weather_service = OpenWeatherService(
 
 bot_controller = TelegramBotController(token=settings.TELEGRAM_TOKEN)
 
+# Configure Celery
+app = Celery(
+    "tasks",
+    broker=settings.REDIS_URL,
+    backend=settings.REDIS_URL,  # Using Redis for results backend as well
+)
 
-@celery_app.task
-def check_weather():
-    """
-    Check the current weather conditions and send alerts if wind speed
-    exceeds the threshold.
-    """
-    logger.info("Checking weather conditions for wind alerts")
+app.conf.update(
+    task_serializer="json",
+    accept_content=["json"],  # Allow json content
+    result_serializer="json",
+    timezone="UTC",
+    enable_utc=True,
+)
 
+# --- Task Definitions --- #
+
+
+@app.task(name="tasks.check_weather_and_alert")
+def check_weather_and_alert():
+    """Scheduled task to check weather and potentially send alerts."""
+    logger.info("Starting scheduled task: check_weather_and_alert")
     try:
-        # Get current weather data
-        weather_data = weather_service.get_current_weather()
+        # Instantiate dependencies for the use case
+        weather_service = OpenWeatherService()
+        notifier = TelegramNotificationService(token=settings.TELEGRAM_TOKEN)
+        alert_repo = RedisAlertStateRepository()
 
-        if not weather_data:
-            logger.error("Failed to get current weather data")
-            return
+        # Instantiate the use case, injecting repository *classes*
+        use_case = ProcessScheduledWeatherCheckUseCase(
+            weather_service=weather_service,
+            alert_repo=alert_repo,
+            notifier=notifier,
+            stats_repo_cls=SqlStatsRepository,  # Pass the class
+            weather_log_repo_cls=SqlWeatherLogRepository,  # Pass the class
+        )
 
-        # Determine if we should send a wind alert
-        if should_send_wind_alert(weather_data):
-            logger.info(f"Wind alert condition met: {weather_data.wind.speed_knots} knots")
-            # Directly call the send_wind_alert task
-            send_wind_alert(weather_data.dict())
-        else:
-            logger.info(f"No wind alert needed. Current wind: {weather_data.wind.speed_knots} knots")
+        # Execute the use case - session management is handled within execute
+        asyncio.run(use_case.execute())
+        logger.info("Finished scheduled task: check_weather_and_alert")
 
     except Exception as e:
-        logger.error(f"Error checking weather: {e}")
+        logger.error(f"Error in scheduled task check_weather_and_alert: {e}", exc_info=True)
+
+
+@celery_app.task(name="tasks.send_daily_forecast_task")
+def send_daily_forecast_task():
+    """Scheduled task to send the daily forecast."""
+    logger.info("Task send_daily_forecast_task triggered.")
+    try:
+        # Instantiate dependencies
+        notifier = TelegramNotificationService()
+        weather_service = OpenWeatherService()
+
+        # Instantiate and execute the use case
+        use_case = SendDailyForecastUseCase(notifier, weather_service)
+        asyncio.run(use_case.execute())
+
+    except Exception as e:
+        logger.error(f"Error in send_daily_forecast_task: {e}", exc_info=True)
 
 
 @celery_app.task
@@ -145,3 +191,14 @@ def send_wind_alert(weather_data_dict):
 
     except Exception as e:
         logger.error(f"Error processing wind alert: {e}")
+
+
+# Define the schedule for the task
+app.conf.beat_schedule = {
+    "check-weather-every-interval": {
+        "task": "tasks.check_weather_and_alert",
+        # Schedule based on settings
+        "schedule": crontab(minute=f"*/{settings.WEATHER_CHECK_INTERVAL_MINUTES}"),
+    },
+    # Add other scheduled tasks here if needed
+}

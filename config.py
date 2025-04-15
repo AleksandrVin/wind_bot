@@ -6,11 +6,14 @@ Uses Pydantic for settings management.
 import os
 from datetime import time
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
+from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class Language(str, Enum):
@@ -22,7 +25,8 @@ class Settings(BaseSettings):
     # Telegram Bot Settings
     TELEGRAM_TOKEN: str = Field(..., description="Telegram Bot API token")
     ALLOWED_CHAT_IDS: List[int] = Field(
-        default_factory=list, description="List of chat IDs where the bot is allowed to operate"
+        default_factory=list,
+        description="List of chat IDs where the bot is allowed to operate",
     )
     ADMIN_USER_IDS: List[int] = Field(default_factory=list, description="List of user IDs that have admin privileges")
 
@@ -46,24 +50,19 @@ class Settings(BaseSettings):
     # Redis Settings
     REDIS_URL: str = Field(
         default_factory=lambda: os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0"),
-        description="Redis URL for Celery",
+        description="Redis URL for Celery. Defaults to CELERY_BROKER_URL env var or localhost.",
     )
 
-    # Database Settings
-    DATABASE_URI: str = Field(default="sqlite:///instance/wind_bot.db", description="Database connection URI")
-    DATABASE_ENGINE_OPTIONS: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "pool_recycle": 300,
-            "pool_pre_ping": True,
-        },
-        description="SQLAlchemy database engine options",
+    # Database Settings (Now PostgreSQL/Async)
+    DATABASE_URI: str = Field(
+        default_factory=lambda: os.environ.get(
+            "DATABASE_URL",
+            # Default for connecting from host to Docker exposed port
+            "postgresql+asyncpg://user:password@localhost:5432/wind_bot_db",
+        ),
+        description="Async database connection URI (e.g., postgresql+asyncpg://...). Defaults to DATABASE_URL env var or localhost.",
     )
-
-    # Web Settings
-    WEB_API_URL: str = Field(
-        default_factory=lambda: os.environ.get("WEB_API_URL", "http://localhost:5000/api"),
-        description="Base URL for the internal web API",
-    )
+    # DATABASE_ENGINE_OPTIONS removed as defaults are usually sufficient for asyncpg
 
     # LangChain Settings
     LANGSMITH_TRACING: bool = Field(True, description="Enable LangSmith tracing")
@@ -75,37 +74,28 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(..., description="OpenAI API key")
     OPENAI_MODEL: str = Field("gpt-4o", description="OpenAI model to use")
 
-    @field_validator("DATABASE_URI", mode="before")
+    # General Settings
+    APP_NAME: str = "Wind Bot"
+    DEBUG: bool = False
+
+    @field_validator("FORECAST_TIME", "ALERT_START_TIME", "ALERT_END_TIME", mode="before")
     @classmethod
-    def set_database_uri(cls, v):
-        """Priority: DATABASE_URL environment variable, then default value
-        Also ensures SQLite paths are absolute"""
-        uri = os.environ.get("DATABASE_URL", v)
-
-        # If SQLite and relative path, make it absolute
-        if uri.startswith("sqlite:///") and not uri.startswith("sqlite:////"):
-            db_path = uri.replace("sqlite:///", "")
-            if not os.path.isabs(db_path):
-                # Get the project root directory and make path absolute
-                root_dir = Path(__file__).parent.absolute()
-                abs_db_path = os.path.join(root_dir, db_path)
-                uri = f"sqlite:///{abs_db_path}"
-
-        return uri
-
-    @field_validator("FORECAST_TIME", "ALERT_START_TIME", "ALERT_END_TIME")
-    @classmethod
-    def validate_time(cls, v):
-        if not isinstance(v, time):
+    def validate_time_format(cls, v):
+        if isinstance(v, str):
             try:
                 hour, minute = map(int, v.split(":"))
                 return time(hour, minute)
             except (ValueError, AttributeError):
                 raise ValueError("Time must be in HH:MM format")
-        return v
+        elif isinstance(v, time):
+            return v
+        else:
+            raise TypeError("Invalid type for time setting")
 
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
         extra = "ignore"
 
 

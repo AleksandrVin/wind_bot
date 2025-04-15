@@ -21,6 +21,8 @@ from infrastructure.persistence.database import get_db
 from infrastructure.persistence.sql_stats_repository import SqlStatsRepository
 from infrastructure.persistence.sql_weather_log_repository import SqlWeatherLogRepository
 from infrastructure.weather.openweather_service import OpenWeatherService
+
+# ORM models are now here:
 from interfaces.web import schemas  # API Schemas (Pydantic models)
 
 logger = logging.getLogger(__name__)

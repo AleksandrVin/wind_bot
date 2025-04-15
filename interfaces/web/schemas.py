@@ -26,7 +26,7 @@ class WeatherLogRead(WeatherLogBase):
     timestamp: datetime
 
     class Config:
-        orm_mode = True  # Allows mapping from SQLAlchemy models
+        from_attributes = True  # Use from_attributes instead of orm_mode for Pydantic v2
 
 
 # --- BotStats Schemas --- #
@@ -56,4 +56,4 @@ class BotStatsRead(BotStatsBase):
     timestamp: datetime
 
     class Config:
-        orm_mode = True  # Allows mapping from SQLAlchemy models
+        from_attributes = True  # Use from_attributes instead of orm_mode for Pydantic v2

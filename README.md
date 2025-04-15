@@ -52,7 +52,10 @@ A Telegram bot for kitesurfing and windsurfing enthusiasts that provides weather
 
 3.  Run database initialization (first time or after model changes):
     ```bash
-    python infrastructure/persistence/init_db.py
+    # Run from project root
+    python init_db.py
+    # To drop and recreate tables (useful during development):
+    # python init_db.py --recreate 
     ```
 
 4.  Start the application (only web server):
@@ -118,3 +121,14 @@ Core settings can be modified in `config.py`, including:
 ## Development
 
 The project follows Domain-Driven Design principles with clear separation of concerns. Core business logic is isolated in the domain layer, while external integrations are handled in the infrastructure layer. The web interface is built using FastAPI, providing asynchronous capabilities and automatic API documentation.
+
+### TODO
+
+- [ ] Fix tests (Adapt to FastAPI and Use Case refactoring)
+- [ ] Replace internal web API client with RabbitMQ/other message queue for inter-service communication (Decouple Bot/Tasks from Web API)
+- [ ] Add Github CI pipeline (linting, testing checks)
+- [ ] **Dependency Injection Container:** Implement a DI container (like `python-dependency-injector`) to manage dependency creation (repositories, services) instead of direct instantiation in use cases/controllers.
+- [ ] **Abstract External Services:** Create `AbstractWeatherService` and `AbstractLLMService` interfaces in `application/interfaces` and update infrastructure implementations and use case injections.
+- [ ] **User Preferences:** Persist user language preferences (and potentially other settings) using a dedicated repository (e.g., `UserPreferencesRepository`) instead of only relying on `context.user_data`.
+- [ ] **Error Handling Granularity:** Refactor use cases to raise more specific, custom exceptions instead of generic `Exception` to allow calling layers (interfaces) to handle errors more precisely if needed.
+- [ ] **Domain Model Purity (Review):** Review if `WeatherData` and `BotMessage` in `domain/models` should remain simple Pydantic data structures or evolve into richer classes with behaviour. (Current approach using Pydantic is often pragmatic).

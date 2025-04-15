@@ -3,6 +3,11 @@ name = "wind-bot"
 version = "0.1.0"
 description = "Telegram bot for kitesufing chats"
 requires-python = "~=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "celery>=5.5.0",
     "email-validator>=2.2.0",
@@ -21,6 +26,8 @@ dependencies = [
     "requests>=2.32.3",
     "sqlalchemy>=2.0.40",
     "werkzeug>=3.1.3",
+    "asyncpg",
+    "sqlmodel>=0.0.24",
 ]
 
 [dependency-groups]
@@ -30,8 +37,13 @@ dev = [
     "pytest-cov>=6.1.1",
     "pytest-mock>=3.14.0",
     "ruff>=0.11.5",
+    "snap2txt>=0.2.1",
 ]
 
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+
+[project.urls]
+Homepage = "https://github.com/your_username/wind_bot" # Replace with your repo URL
+Issues = "https://github.com/your_username/wind_bot/issues" # Replace
